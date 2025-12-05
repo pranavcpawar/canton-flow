@@ -13,7 +13,7 @@ export default function Navbar() {
     { href: "/pools", label: "Pools" },
   ];
   return (
-    <header className="w-full p-2 flex bg-background/80 backdrop-blur-xl text-foreground sticky top-0 z-50 shadow-md border-b border-[#303030]/40">
+    <header className="w-full p-2 flex bg-background/80 backdrop-blur-xl text-foreground fixed top-0 z-50 shadow-md border-b border-[#303030]/40">
       <nav className="flex justify-between items-center w-full p-1">
         <div className="flex items-center gap-8">
           <Link href="/" className="flex items-center gap-2 group">
