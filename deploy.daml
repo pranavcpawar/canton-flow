@@ -1,0 +1,66 @@
+module Deploy where
+
+import CascadePool
+import Daml.Script
+
+-- Deployment script for CascadePool
+deploy : Script ()
+deploy = do
+  -- Create parties
+  merchant <- allocateParty "Merchant"
+  investor1 <- allocateParty "Investor1"
+  investor2 <- allocateParty "Investor2"
+  payer <- allocateParty "Payer"
+  factoryOwner <- allocateParty "FactoryOwner"
+  
+  -- Create a ReceiptNFT issuer
+  receiptIssuer <- allocateParty "ReceiptIssuer"
+  
+  -- Create a receipt NFT
+  receiptCid <- submit receiptIssuer do
+    create ReceiptNFT with
+      issuer = receiptIssuer
+      owner = merchant
+      tokenId = "INV-001"
+  
+  -- Create PoolFactory
+  factoryCid <- submit factoryOwner do
+    create PoolFactory with
+      owner = factoryOwner
+      nextPoolId = 1
+  
+  -- Merchant creates a pool (requires both merchant and factoryOwner authorization)
+  (newFactoryCid, poolCid) <- submit [merchant, factoryOwner] do
+    exercise factoryCid CreatePool with
+      merchant = merchant
+      receiptNftCid = receiptCid
+      receivableValue = 10000.0
+      investorReturn = 1000.0
+      seniorDiscBPS = 100.0  -- 1%
+      juniorDiscBPS = 1200.0  -- 12%
+  
+  -- Investor 1 invests in senior tranche
+  poolCid2 <- submit investor1 do
+    exercise poolCid InvestSenior with
+      amount = 5000.0
+  
+  -- Investor 2 invests in junior tranche
+  poolCid3 <- submit investor2 do
+    exercise poolCid2 InvestJunior with
+      amount = 2000.0
+  
+  -- Check if pool is funded and merchant can claim advance
+  pool <- queryContractId poolCid3 merchant
+  case pool of
+    None -> pure ()
+    Some p -> do
+      if p.isFunded then do
+        -- Merchant claims advance
+        (poolCid4, advanceAmount) <- submit merchant do
+          exercise p.contractId ClaimAdvance
+        pure ()
+      else
+        pure ()
+  
+  pure ()
+

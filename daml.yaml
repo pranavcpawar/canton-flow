@@ -1,0 +1,10 @@
+sdk-version: 2.8.0
+name: cascade-pool
+version: 1.0.0
+source: contract
+dependencies:
+  - daml-stdlib
+  - daml-prim
+  - daml-script
+
+

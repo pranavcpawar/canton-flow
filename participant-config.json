@@ -1,0 +1,18 @@
+{
+  "participants": [
+    {
+      "participant": "participant1",
+      "host": "localhost",
+      "port": 5018,
+      "tls": {
+        "enabled": false
+      }
+    }
+  ],
+  "ledger": {
+    "host": "localhost",
+    "port": 6865
+  }
+}
+
+

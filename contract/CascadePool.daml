@@ -1,0 +1,312 @@
+module CascadePool where
+
+import DA.Assert
+import DA.Finance.Types qualified as Finance
+import DA.Finance.Asset qualified as Asset
+import DA.Next.Set qualified as Set
+import DA.Map qualified as Map
+
+-- ============================================================================
+-- 1. RECEIPT NFT (The Invoice)
+-- ============================================================================
+
+template ReceiptNFT
+  with
+    issuer : Party
+    owner : Party
+    tokenId : Text
+  where
+    signatory issuer
+    observer owner
+
+    choice Mint : ContractId ReceiptNFT
+      with
+        newOwner : Party
+      controller issuer
+      do
+        create this with owner = newOwner
+
+    choice Transfer : ContractId ReceiptNFT
+      with
+        newOwner : Party
+      controller owner
+      do
+        create this with owner = newOwner
+
+-- ============================================================================
+-- 2. CASCADE PROTOCOL (Main Logic)
+-- ============================================================================
+
+template Pool
+  with
+    poolId : Int
+    merchant : Party
+    receiptNft : ContractId ReceiptNFT
+    receivableValue : Decimal      -- R (total invoice value)
+    advanceAmount : Decimal        -- A (80% LTV)
+    
+    -- Math
+    seniorFaceValue : Decimal      -- Amount owed to Seniors
+    seniorTargetRaise : Decimal    -- Amount Seniors pay
+    juniorFaceValue : Decimal      -- Amount owed to Juniors
+    juniorTargetRaise : Decimal    -- Amount Juniors pay
+    
+    -- State
+    seniorRaised : Decimal
+    juniorRaised : Decimal
+    totalRepaid : Decimal          -- Total repaid by customer
+    isFunded : Bool
+    advanceClaimed : Bool          -- Track if merchant claimed advance
+    
+    -- Token identifiers for tracking
+    seniorTokenId : Text
+    juniorTokenId : Text
+    
+    -- Track investments and holdings
+    seniorHoldings : Map Party Decimal  -- Party -> token amount
+    juniorHoldings : Map Party Decimal  -- Party -> token amount
+  where
+    signatory merchant
+    observer Set.empty
+
+    -- ------------------------------------------------------------------------
+    -- B. INVESTOR: Fund Pool (Senior Tranche)
+    -- ------------------------------------------------------------------------
+    choice InvestSenior : ContractId Pool
+      with
+        amount : Decimal
+      controller investor
+      do
+        assert (not isFunded) "Pool already funded"
+        assert (seniorRaised + amount <= seniorTargetRaise) "Senior tranche full"
+        
+        -- Calculate tokens to mint: (Contribution * FaceValue) / TargetRaise
+        let mintAmt = (amount * seniorFaceValue) / seniorTargetRaise
+        
+        -- Update holdings
+        let currentSenior = fromMaybe 0.0 (Map.lookup investor seniorHoldings)
+        let newSeniorHoldings = Map.insert investor (currentSenior + mintAmt) seniorHoldings
+        
+        -- Update pool state
+        let newSeniorRaised = seniorRaised + amount
+        let newIsFunded = newSeniorRaised >= seniorTargetRaise && juniorRaised >= juniorTargetRaise
+        
+        -- Create updated pool
+        create this with
+          seniorRaised = newSeniorRaised
+          seniorHoldings = newSeniorHoldings
+          isFunded = newIsFunded
+
+    -- ------------------------------------------------------------------------
+    -- B. INVESTOR: Fund Pool (Junior Tranche)
+    -- ------------------------------------------------------------------------
+    choice InvestJunior : ContractId Pool
+      with
+        amount : Decimal
+      controller investor
+      do
+        assert (not isFunded) "Pool already funded"
+        assert (juniorRaised + amount <= juniorTargetRaise) "Junior tranche full"
+        
+        -- Calculate tokens to mint
+        let mintAmt = (amount * juniorFaceValue) / juniorTargetRaise
+        
+        -- Update holdings
+        let currentJunior = fromMaybe 0.0 (Map.lookup investor juniorHoldings)
+        let newJuniorHoldings = Map.insert investor (currentJunior + mintAmt) juniorHoldings
+        
+        -- Update pool state
+        let newJuniorRaised = juniorRaised + amount
+        let newIsFunded = seniorRaised >= seniorTargetRaise && newJuniorRaised >= juniorTargetRaise
+        
+        -- Create updated pool
+        create this with
+          juniorRaised = newJuniorRaised
+          juniorHoldings = newJuniorHoldings
+          isFunded = newIsFunded
+
+    -- ------------------------------------------------------------------------
+    -- C. MERCHANT: Claim Advance (when pool is funded)
+    -- ------------------------------------------------------------------------
+    choice ClaimAdvance : (ContractId Pool, Decimal)
+      controller merchant
+      do
+        assert isFunded "Pool not funded yet"
+        assert (not advanceClaimed) "Advance already claimed"
+        
+        -- Create updated pool marking advance as claimed
+        newPoolCid <- create this with advanceClaimed = True
+        
+        return (newPoolCid, advanceAmount)
+
+    -- ------------------------------------------------------------------------
+    -- D. PAYER: Repay Loan
+    -- ------------------------------------------------------------------------
+    choice Repay : ContractId Pool
+      with
+        amount : Decimal
+      controller payer
+      do
+        assert isFunded "Not funded yet"
+        
+        -- Update total repaid
+        create this with totalRepaid = totalRepaid + amount
+
+    -- ------------------------------------------------------------------------
+    -- E. INVESTOR: Claim Returns (Waterfall)
+    -- ------------------------------------------------------------------------
+    choice Claim : (ContractId Pool, Decimal)
+      with
+        seniorTokens : Decimal  -- Amount of senior tokens to claim
+        juniorTokens : Decimal  -- Amount of junior tokens to claim
+      controller investor
+      do
+        let sBal = fromMaybe 0.0 (Map.lookup investor seniorHoldings)
+        let jBal = fromMaybe 0.0 (Map.lookup investor juniorHoldings)
+        
+        assert (seniorTokens <= sBal && juniorTokens <= jBal) "Insufficient tokens"
+        assert (seniorTokens > 0.0 || juniorTokens > 0.0) "Nothing to claim"
+        
+        -- Calculate payout using waterfall logic
+        
+        -- 1. Senior Waterfall
+        let seniorPayout = 
+          if seniorTokens > 0.0 then
+            let seniorFilled = if totalRepaid > seniorFaceValue then seniorFaceValue else totalRepaid
+            (seniorTokens * seniorFilled) / seniorFaceValue
+          else
+            0.0
+        
+        -- 2. Junior Waterfall (only after senior is fully paid)
+        let juniorPayout = 
+          if juniorTokens > 0.0 then
+            if totalRepaid > seniorFaceValue then
+              let remaining = totalRepaid - seniorFaceValue
+              let juniorFilled = if remaining > juniorFaceValue then juniorFaceValue else remaining
+              (juniorTokens * juniorFilled) / juniorFaceValue
+            else
+              0.0
+          else
+            0.0
+        
+        let totalPayout = seniorPayout + juniorPayout
+        assert (totalPayout > 0.0) "Nothing to claim"
+        
+        -- Update holdings (burn tokens)
+        let newSeniorHoldings = 
+          if seniorTokens > 0.0 then
+            let newBal = sBal - seniorTokens
+            if newBal > 0.0 then
+              Map.insert investor newBal seniorHoldings
+            else
+              Map.delete investor seniorHoldings
+          else
+            seniorHoldings
+        
+        let newJuniorHoldings = 
+          if juniorTokens > 0.0 then
+            let newBal = jBal - juniorTokens
+            if newBal > 0.0 then
+              Map.insert investor newBal juniorHoldings
+            else
+              Map.delete investor juniorHoldings
+          else
+            juniorHoldings
+        
+        -- Create updated pool
+        newPoolCid <- create this with
+          seniorHoldings = newSeniorHoldings
+          juniorHoldings = newJuniorHoldings
+        
+        return (newPoolCid, totalPayout)
+
+    -- ------------------------------------------------------------------------
+    -- F. MERCHANT: Claim Residual
+    -- ------------------------------------------------------------------------
+    choice ClaimMerchantResidual : (ContractId Pool, Decimal)
+      controller merchant
+      do
+        let debt = seniorFaceValue + juniorFaceValue
+        assert (totalRepaid > debt) "Investors not paid yet"
+        
+        let residual = totalRepaid - debt
+        
+        -- Update total repaid to prevent double claim
+        newPoolCid <- create this with totalRepaid = totalRepaid - residual
+        
+        return (newPoolCid, residual)
+
+-- ============================================================================
+-- POOL FACTORY
+-- ============================================================================
+
+-- Factory template to create pools and track pool IDs
+-- Merchants can create pools directly, or use this factory for ID management
+template PoolFactory
+  with
+    owner : Party
+    nextPoolId : Int
+  where
+    signatory owner
+
+    -- Allow merchant to create pool and factory updates atomically
+    -- Both merchant and owner must authorize
+    choice CreatePool : (ContractId PoolFactory, ContractId Pool)
+      with
+        merchant : Party
+        receiptNftCid : ContractId ReceiptNFT
+        receivableValue : Decimal
+        investorReturn : Decimal
+        seniorDiscBPS : Decimal    -- 100 = 1%
+        juniorDiscBPS : Decimal    -- 1200 = 12%
+      controller [merchant, owner]
+      do
+        -- Verify merchant owns the receipt NFT
+        receipt <- fetch receiptNftCid
+        assert (receipt.owner == merchant) "Merchant must own the receipt NFT"
+        
+        -- Calculate constants
+        let advance = (receivableValue * 80.0) / 100.0  -- 80% LTV
+        let claimTotal = advance + investorReturn
+        
+        -- Split claim: 75% Senior / 25% Junior
+        let seniorFaceValue = (claimTotal * 75.0) / 100.0
+        let juniorFaceValue = (claimTotal * 25.0) / 100.0
+        
+        -- Apply discounts to determine target raise
+        let seniorTargetRaise = seniorFaceValue - ((seniorFaceValue * seniorDiscBPS) / 10000.0)
+        let juniorTargetRaise = juniorFaceValue - ((juniorFaceValue * juniorDiscBPS) / 10000.0)
+        
+        -- Generate token IDs
+        let seniorTokenId = "Snr-" <> show nextPoolId
+        let juniorTokenId = "Jnr-" <> show nextPoolId
+        
+        -- Transfer NFT custody to the pool (by archiving and creating new one)
+        archive receiptNftCid
+        
+        -- Create pool (merchant is signatory)
+        poolCid <- create Pool with
+          poolId = nextPoolId
+          merchant = merchant
+          receiptNft = receiptNftCid
+          receivableValue = receivableValue
+          advanceAmount = advance
+          seniorFaceValue = seniorFaceValue
+          seniorTargetRaise = seniorTargetRaise
+          juniorFaceValue = juniorFaceValue
+          juniorTargetRaise = juniorTargetRaise
+          seniorRaised = 0.0
+          juniorRaised = 0.0
+          totalRepaid = 0.0
+          isFunded = False
+          advanceClaimed = False
+          seniorTokenId = seniorTokenId
+          juniorTokenId = juniorTokenId
+          seniorHoldings = Map.empty
+          juniorHoldings = Map.empty
+        
+        -- Update factory atomically
+        newFactoryCid <- create this with nextPoolId = nextPoolId + 1
+        
+        return (newFactoryCid, poolCid)
+

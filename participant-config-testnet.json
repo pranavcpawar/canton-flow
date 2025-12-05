@@ -1,0 +1,21 @@
+{
+  "_comment": "Example configuration for Canton TestNet. Replace with your actual TestNet credentials.",
+  "participants": [
+    {
+      "participant": "participant1",
+      "host": "testnet.canton.network",
+      "port": 5018,
+      "tls": {
+        "enabled": true,
+        "certChainFile": "path/to/your-cert.pem",
+        "privateKeyFile": "path/to/your-key.pem"
+      }
+    }
+  ],
+  "ledger": {
+    "host": "testnet.canton.network",
+    "port": 6865
+  }
+}
+
+
