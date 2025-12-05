@@ -38,7 +38,9 @@ export default function Navbar() {
             })}
           </div>
         </div>
-        <div>Connect Wallet</div>
+        <button className="px-4 py-2 rounded-lg bg-primary text-background font-semibold transition-all duration-300 hover:brightness-110 hover:shadow-lg hover:shadow-primary/20 font-space-grotesk">
+          Connect Wallet
+        </button>
       </nav>
     </header>
   );
