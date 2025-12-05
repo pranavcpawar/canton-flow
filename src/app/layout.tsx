@@ -7,6 +7,9 @@ import Note from "@/app/note";
 export const metadata: Metadata = {
   title: "Canton Flow",
   description: "Streamlined receivables management powered by Canton Network.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({
