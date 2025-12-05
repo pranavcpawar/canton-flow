@@ -20,7 +20,7 @@ export default function RootLayout({
         className={`${geist.variable} ${outfit.variable} ${manrope.variable} ${quicksand.variable} ${space_grotesk.variable} antialiased`}
       >
         <Navbar />
-        <main className="min-h-screen w-full p-2">{children}</main>
+        <main className="min-h-screen w-full p-2 motion-safe:animate-page-enter">{children}</main>
         <Note />
       </body>
     </html>

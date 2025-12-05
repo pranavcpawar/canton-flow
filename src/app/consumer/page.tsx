@@ -6,7 +6,7 @@ export default function Consumer() {
   const [isScanning, setIsScanning] = useState(false);
 
   return (
-    <div className="relative w-full min-h-screen bg-background overflow-hidden">
+    <div className="relative w-full min-h-screen bg-background overflow-hidden animate-fade-in">
       <div className="pointer-events-none fixed inset-0 opacity-60">
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-primary/12 blur-3xl" />
         <div className="absolute top-20 right-8 h-64 w-64 rounded-full bg-secondary/15 blur-2xl" />

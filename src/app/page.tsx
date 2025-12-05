@@ -41,7 +41,7 @@ export default function Home() {
   ];
 
   return (
-    <div className="w-full min-h-screen bg-background">
+    <div className="w-full min-h-screen bg-background animate-fade-in">
       {/* Decorative backdrops */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-primary/10 blur-3xl" />
@@ -211,7 +211,7 @@ export default function Home() {
 
           <div className="relative">
             {/* Connection Line */}
-            <div className="absolute top-8 left-8 right-8 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent hidden md:block" />
+            <div className="absolute top-8 left-8 right-8 h-px bg-linear-to-r from-transparent via-primary/30 to-transparent hidden md:block" />
 
             <div className="grid md:grid-cols-3 gap-8">
               {workflows.map((workflow, i) => (

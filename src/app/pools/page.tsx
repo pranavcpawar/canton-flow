@@ -1,8 +1,65 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+
+function AnimatedNumber({
+  target,
+  prefix = "",
+  suffix = "",
+  decimals = 0,
+  duration = 1400,
+  className = "",
+}: {
+  target: number;
+  prefix?: string;
+  suffix?: string;
+  decimals?: number;
+  duration?: number;
+  className?: string;
+}) {
+  const [value, setValue] = useState(0);
+
+  useEffect(() => {
+    let start: number | null = null;
+    let frame: number;
+
+    const step = (timestamp: number) => {
+      if (start === null) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      setValue(target * progress);
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [duration, target]);
+
+  const formatted = useMemo(() => {
+    const factor = Math.pow(10, decimals);
+    const rounded = Math.round(value * factor) / factor;
+    return `${prefix}${rounded.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    })}${suffix}`;
+  }, [decimals, prefix, suffix, value]);
+
+  return <span className={className}>{formatted}</span>;
+}
+
 export default function Pools() {
+  const [seniorProgress, setSeniorProgress] = useState(0);
+  const [juniorProgress, setJuniorProgress] = useState(0);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setSeniorProgress(0);
+      setJuniorProgress(100);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
   return (
-    <div className="relative w-full min-h-screen bg-background overflow-hidden">
+    <div className="relative w-full min-h-screen bg-background overflow-hidden animate-fade-in">
       <div className="pointer-events-none fixed inset-0 opacity-60">
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-primary/12 blur-3xl" />
         <div className="absolute top-20 right-8 h-64 w-64 rounded-full bg-secondary/15 blur-2xl" />
@@ -30,25 +87,27 @@ export default function Pools() {
             style={{ animationDelay: "0.05s" }}
           >
             {[
-              { label: "Total Pools", value: "1", highlight: true },
-              { label: "Total Value", value: "$50K", highlight: false },
-              { label: "Senior Funding", value: "$30K", highlight: false },
-              { label: "Junior Funding", value: "$20K", highlight: false },
-            ].map((stat) => (
+              { label: "Total Pools", value: 1, highlight: true },
+              { label: "Total Value", value: 50, prefix: "$", suffix: "K", highlight: false },
+              { label: "Senior Funding", value: 30, prefix: "$", suffix: "K", highlight: false },
+              { label: "Junior Funding", value: 20, prefix: "$", suffix: "K", highlight: false },
+            ].map((stat, i) => (
               <div
                 key={stat.label}
                 className="p-5 rounded-xl border border-foreground/15 bg-background/60 backdrop-blur-md hover:border-primary/40 hover:bg-primary/5 transition-all duration-300 hover:scale-[1.02] shadow-sm shadow-primary/10"
+                style={{ animationDelay: `${0.05 + i * 0.05}s` }}
               >
                 <p className="text-xs text-foreground/60 uppercase tracking-wide mb-2 font-space-grotesk">
                   {stat.label}
                 </p>
-                <p
+                <AnimatedNumber
+                  target={stat.value}
+                  prefix={stat.prefix ?? ""}
+                  suffix={stat.suffix ?? ""}
                   className={`text-3xl font-bold font-space-grotesk ${
                     stat.highlight ? "text-primary" : "text-foreground"
                   }`}
-                >
-                  {stat.value}
-                </p>
+                />
               </div>
             ))}
           </div>
@@ -85,17 +144,21 @@ export default function Pools() {
                 {/* Stats Row */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="p-3 rounded-2xl border border-foreground/15 bg-background/40 backdrop-blur-sm">
-                    <p className="text-3xl font-bold text-foreground font-space-grotesk mb-0.5">
-                      222
-                    </p>
+                    <AnimatedNumber
+                      target={222}
+                      className="text-3xl font-bold text-foreground font-space-grotesk mb-0.5"
+                    />
                     <p className="text-foreground/60 uppercase text-xs font-space-grotesk tracking-wide">
                       Total Value
                     </p>
                   </div>
                   <div className="p-3 rounded-2xl border border-foreground/15 bg-background/40 backdrop-blur-sm">
-                    <p className="text-3xl font-bold text-primary font-space-grotesk mb-0.5">
-                      44.2%
-                    </p>
+                    <AnimatedNumber
+                      target={44.2}
+                      suffix="%"
+                      decimals={1}
+                      className="text-3xl font-bold text-primary font-space-grotesk mb-0.5"
+                    />
                     <p className="text-foreground/60 uppercase text-xs font-space-grotesk tracking-wide">
                       Funded
                     </p>
@@ -116,11 +179,19 @@ export default function Pools() {
                       <span className="text-primary font-bold text-xs font-outfit">1.01% ROI</span>
                     </div>
                     <div className="w-full bg-foreground/10 rounded-full h-1.5 mb-2">
-                      <div className="bg-primary h-1.5 rounded-full" style={{ width: "0%" }} />
+                      <div
+                        className="bg-primary h-1.5 rounded-full transition-all duration-1200"
+                        style={{ width: `${seniorProgress}%` }}
+                      />
                     </div>
                     <div className="flex justify-between text-xs text-foreground/50 font-space-grotesk">
-                      <span>0 HBAR</span>
-                      <span>148.203 HBAR</span>
+                      <AnimatedNumber target={0} suffix=" HBAR" className="text-foreground/50" />
+                      <AnimatedNumber
+                        target={148.203}
+                        decimals={3}
+                        suffix=" HBAR"
+                        className="text-foreground/50"
+                      />
                     </div>
                   </div>
 
@@ -136,11 +207,19 @@ export default function Pools() {
                       <span className="text-primary font-bold text-xs font-outfit">13.64% ROI</span>
                     </div>
                     <div className="w-full bg-foreground/10 rounded-full h-1.5 mb-2">
-                      <div className="bg-primary h-1.5 rounded-full" style={{ width: "100%" }} />
+                      <div
+                        className="bg-primary h-1.5 rounded-full transition-all duration-1200"
+                        style={{ width: `${juniorProgress}%` }}
+                      />
                     </div>
                     <div className="flex justify-between text-xs text-foreground/50 font-space-grotesk">
-                      <span>85 HBAR</span>
-                      <span>43.912 HBAR</span>
+                      <AnimatedNumber target={85} suffix=" HBAR" className="text-foreground/50" />
+                      <AnimatedNumber
+                        target={43.912}
+                        decimals={3}
+                        suffix=" HBAR"
+                        className="text-foreground/50"
+                      />
                     </div>
                   </div>
                 </div>
