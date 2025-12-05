@@ -4,6 +4,12 @@
 
 Canton Flow tokenizes real-world receivables into tradeable NFTs and deploys them into tranche-based liquidity pools on Canton Network. Merchants receive instant liquidity while investors earn yield through risk-stratified tranches with automated waterfall distribution, all with Canton's privacy-preserving architecture.
 
+## 🔄 Workflow
+
+![Canton Flow Workflow](./public/workflow.jpeg)
+
+The complete end-to-end flow showing how merchants, investors, and consumers interact through the platform with Canton Network's smart contracts.
+
 ## 🎯 Problem Statement
 
 Small businesses face delayed cash flow from unpaid receivables, limiting growth opportunities. Traditional factoring is expensive, opaque, and inaccessible. Investors lack transparent, blockchain-secured yield opportunities backed by real-world receivables with clear risk stratification.
@@ -236,7 +242,11 @@ template Pool
 - **Synchronization:** Canton's consensus ensures consistent state
 - **Composability:** DAML contracts can interact across legal entities
 
-## 🔮 Future Enhancements
+## 🔮 Future Scope
+
+![Future Scope](./public/future_scope.jpeg)
+
+Our roadmap for expanding Canton Flow's capabilities and ecosystem:
 
 - **Canton Integration:** Frontend connection to Canton participant nodes via JSON API
 - **Canton Network Deployment:** Production deployment on Canton Global Synchronization Domain
@@ -247,6 +257,9 @@ template Pool
 - **Oracle Integration:** Off-chain receivable verification via Chainlink/Canton bridges
 - **Multi-Participant Workflows:** Cross-organization pool syndication
 - **Privacy Policies:** Granular disclosure controls for sensitive financial data
+- **Institutional Integration:** Bank partnerships for traditional finance bridges
+- **Compliance Automation:** KYC/AML integration with Canton privacy controls
+- **Global Expansion:** Multi-currency support and cross-border receivables
 
 ## 📄 License
 
